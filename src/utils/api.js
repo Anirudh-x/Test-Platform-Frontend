@@ -81,3 +81,13 @@ export const subscribeToStream = (onUpdate, onConnect) => {
   return () => source.close();
 };
 
+import { io } from 'socket.io-client';
+
+export const initSocket = () => {
+  // Extract base URL (remove /api)
+  const baseUrl = API_URL.replace(/\/api$/, '');
+  return io(baseUrl, {
+    withCredentials: true,
+  });
+};
+

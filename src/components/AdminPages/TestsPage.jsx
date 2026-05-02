@@ -4,11 +4,14 @@ import { AdminContext } from '../../context/AdminContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import TestDetailModal from '../Modals/TestDetailModal';
 import CreateTestModal from '../Modals/CreateTestModal';
+import CameraModal from '../Modals/CameraModal';
+import { FiVideo } from 'react-icons/fi';
 
 export default function TestsPage() {
   const { allTests, loadingTests, createTest } = useContext(AdminContext);
   const theme = useContext(ThemeContext);
   const [selectedTest, setSelectedTest] = useState(null);
+  const [cameraTestId, setCameraTestId] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -111,15 +114,26 @@ export default function TestsPage() {
                 <p className={`text-xs ${theme.text.secondary} font-medium`}>
                   Created {test.createdDate?.toLocaleDateString?.() || 'Recently'}
                 </p>
-                <button
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedTest(test);
-                  }}
-                >
-                  View Details
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCameraTestId(test.id);
+                    }}
+                  >
+                    <FiVideo className="text-slate-500" /> Cameras
+                  </button>
+                  <button
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTest(test);
+                    }}
+                  >
+                    Details
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -154,6 +168,13 @@ export default function TestsPage() {
         <TestDetailModal
           test={selectedTest}
           onClose={() => setSelectedTest(null)}
+        />
+      )}
+
+      {cameraTestId && (
+        <CameraModal 
+          testId={cameraTestId} 
+          onClose={() => setCameraTestId(null)} 
         />
       )}
     </div>

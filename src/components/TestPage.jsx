@@ -1,9 +1,11 @@
 import { useContext, useEffect, useState, useRef } from 'react';
 import { TestContext } from '../context/TestContext';
 import { languages, generateStarterCode } from '../utils/testData';
+import { initSocket } from '../utils/api';
 
 export default function TestPage() {
   const {
+    studentInfo,
     currentQuestionIndex,
     answers,
     setAnswer,
@@ -26,6 +28,10 @@ export default function TestPage() {
   const [mediaStream, setMediaStream] = useState(null);
   const videoRef = useRef(null);
   const permissionRequestedRef = useRef(false);
+  
+  // WebRTC & Socket refs
+  const socketRef = useRef(null);
+  const peerConnectionsRef = useRef({}); // AdminSocketId -> RTCPeerConnection
 
   // Initialize code when question or language changes
   useEffect(() => {
@@ -131,6 +137,78 @@ export default function TestPage() {
               videoRef.current.play().catch(err => console.warn('Video play failed:', err));
             };
           }
+          
+          // Connect to socket for WebRTC signaling
+          const socket = initSocket();
+          socketRef.current = socket;
+
+          socket.on('connect', () => {
+             socket.emit('register-student', {
+                 testId: studentInfo?.testId,
+                 rollNo: studentInfo?.rollNo,
+                 name: studentInfo?.name
+             });
+          });
+
+          // Handle incoming WebRTC connection request from admin
+          socket.on('request-offer', async (data) => {
+             const { adminSocketId } = data;
+             
+             const pc = new RTCPeerConnection({
+                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+             });
+             peerConnectionsRef.current[adminSocketId] = pc;
+
+             // Add local camera tracks to the peer connection
+             stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+             // Handle ICE candidates
+             pc.onicecandidate = (event) => {
+                 if (event.candidate) {
+                     socket.emit('ice-candidate', {
+                         targetSocketId: adminSocketId,
+                         candidate: event.candidate
+                     });
+                 }
+             };
+
+             try {
+                 const offer = await pc.createOffer();
+                 await pc.setLocalDescription(offer);
+                 socket.emit('webrtc-offer', {
+                     adminSocketId,
+                     offer
+                 });
+             } catch (err) {
+                 console.error('Error creating WebRTC offer:', err);
+             }
+          });
+
+          // Handle answer from admin
+          socket.on('webrtc-answer', async (data) => {
+             const { adminSocketId, answer } = data;
+             const pc = peerConnectionsRef.current[adminSocketId];
+             if (pc) {
+                 try {
+                     await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                 } catch (e) {
+                     console.error('Error setting remote description from answer:', e);
+                 }
+             }
+          });
+
+          // Handle incoming ICE candidates from admin
+          socket.on('ice-candidate', async (data) => {
+              const { sourceSocketId, candidate } = data;
+              const pc = peerConnectionsRef.current[sourceSocketId];
+              if (pc) {
+                  try {
+                      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                  } catch (e) {
+                      console.error('Error adding ICE candidate', e);
+                  }
+              }
+          });
         } catch (err) {
           console.error('Camera/Microphone access error:', err);
           permissionRequestedRef.current = false;
@@ -147,8 +225,16 @@ export default function TestPage() {
         setMediaStream(null);
         permissionRequestedRef.current = false;
       }
+      
+      // Cleanup WebRTC connections
+      if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+      }
+      Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
+      peerConnectionsRef.current = {};
     };
-  }, [languageLocked]);
+  }, [languageLocked, studentInfo]);
 
   // Format time for display (MM:SS)
   const formatTime = (seconds) => {
