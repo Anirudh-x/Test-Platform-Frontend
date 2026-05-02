@@ -10,7 +10,7 @@ export function TestProvider({ children }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [questionTimes, setQuestionTimes] = useState({});
-  const [selectedLanguage, setSelectedLanguage] = useState('python');
+  const [selectedLanguage, setSelectedLanguage] = useState('none');
   const [languageLocked, setLanguageLocked] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(3600);
@@ -139,7 +139,7 @@ export function TestProvider({ children }) {
     setCurrentQuestionIndex(0);
     setAnswers({});
     setQuestionTimes({});
-    setSelectedLanguage('python');
+    setSelectedLanguage('none');
     setLanguageLocked(false);
     setQuestionStartTime(null);
     setTimeRemaining(3600);
