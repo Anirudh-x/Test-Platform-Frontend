@@ -8,7 +8,6 @@ export default function TestPage() {
     answers,
     setAnswer,
     moveToNextQuestion,
-    moveToPreviousQuestion,
     submitTest,
     selectedLanguage,
     setSelectedLanguage,
@@ -79,7 +78,7 @@ export default function TestPage() {
   };
 
   const handleNext = () => moveToNextQuestion(testQuestions);
-  const handlePrevious = () => moveToPreviousQuestion();
+
 
   const handleSubmit = () => {
     if (window.confirm('Are you sure you want to submit the test? You cannot change answers after submission.')) {
@@ -366,16 +365,7 @@ export default function TestPage() {
 
               {/* Navigation Buttons */}
               <div className="bg-white rounded-xl shadow-soft px-6 py-4">
-                <div className="flex gap-4 justify-between">
-                  {currentQuestionIndex > 0 && (
-                    <button
-                      onClick={handlePrevious}
-                      className="px-6 py-2 bg-gray-100 text-text-primary font-semibold rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm"
-                    >
-                      ← Previous
-                    </button>
-                  )}
-                  <div className="flex-1" />
+                <div className="flex gap-4 justify-end">
                   {!isLastQuestion ? (
                     <button
                       onClick={handleNext}
