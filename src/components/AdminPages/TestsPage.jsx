@@ -122,7 +122,7 @@ export default function TestsPage() {
                       setCameraTestId(test.id);
                     }}
                   >
-                    <FiVideo className="text-slate-500" /> Cameras
+                    <FiVideo className="text-slate-500" />
                   </button>
                   <button
                     className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
