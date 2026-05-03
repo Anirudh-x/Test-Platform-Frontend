@@ -17,14 +17,44 @@ function TestAppContent() {
 
   useEffect(() => {
     const checkMobile = () => {
+      // 1. Basic User Agent and Window Width check
       const userAgentCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       const widthCheck = window.innerWidth <= 768;
-      setIsMobile(userAgentCheck || widthCheck);
+
+      // 2. Feature Detection (Catches "View Desktop Site" bypass)
+      // Checks if the primary input mechanism is a finger/touch.
+      // (Touch laptops usually have 'fine' primary pointer, so this mostly targets phones/tablets)
+      const isCoarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+
+      // 3. iPadOS/iOS specific bypass check
+      // When "Desktop Site" is enabled on iPad/iPhone, it spoofs its platform as macOS
+      const isSpoofedIpad = navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && /MacIntel/.test(navigator.platform);
+
+      // 4. Modern User-Agent Client Hints API (supported in recent Chromium)
+      const isMobileUaData = navigator.userAgentData && navigator.userAgentData.mobile;
+
+      // 5. Fallback for mobile screens spoofing viewport width
+      // Mobile screens have high pixel density but small logical width, even in desktop mode
+      const isSpoofedScreen = window.screen.width <= 1024 && window.devicePixelRatio >= 2 && ('ontouchstart' in window);
+
+      setIsMobile(
+        userAgentCheck || 
+        widthCheck || 
+        isCoarsePointer || 
+        isSpoofedIpad || 
+        isMobileUaData || 
+        isSpoofedScreen
+      );
     };
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener('orientationchange', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('orientationchange', checkMobile);
+    };
   }, []);
 
   if (isMobile) {

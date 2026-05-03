@@ -9,6 +9,9 @@ lerna-debug.log*
 
 .env
 
+# Temprorary
+.github/
+
 node_modules
 dist
 dist-ssr
