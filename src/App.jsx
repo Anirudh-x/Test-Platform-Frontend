@@ -1,5 +1,5 @@
 
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { TestProvider, TestContext } from './context/TestContext';
 import { AdminProvider } from './context/AdminContext';
@@ -13,6 +13,33 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 
 function TestAppContent() {
   const { studentInfo, testStarted, testSubmitted } = useContext(TestContext);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgentCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const widthCheck = window.innerWidth <= 768;
+      setIsMobile(userAgentCheck || widthCheck);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl shadow-soft p-8 max-w-md text-center border-t-4 border-primary">
+          <div className="text-5xl mb-6">📱🚫</div>
+          <h2 className="text-2xl font-bold text-text-primary mb-4">Mobile Access Restricted</h2>
+          <p className="text-text-secondary text-sm leading-relaxed">
+            The coding platform assessment can only be accessed through a desktop or laptop computer. Please open this link on a supported device to continue your test.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // If test not started, show login page
   if (!studentInfo || !testStarted) {
