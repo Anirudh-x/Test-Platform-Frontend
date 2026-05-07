@@ -89,14 +89,18 @@ export default function LoginPage() {
               </li>
               <li className="flex text-left items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mt-0.5">6</span>
-                <span className="text-text-primary text-sm font-normal">Make sure all fields are filled correctly before starting the test</span>
+                <span className="text-text-primary text-sm font-normal">Do not attempt to take screenshot, it will auto submit the test.</span>
               </li>
               <li className="flex text-left items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mt-0.5">7</span>
-                <span className="text-text-primary text-sm font-normal">You cannot go back or pause once the test is submitted</span>
+                <span className="text-text-primary text-sm font-normal">Make sure all fields are filled correctly before starting the test</span>
               </li>
               <li className="flex text-left items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mt-0.5">8</span>
+                <span className="text-text-primary text-sm font-normal">You cannot go back or pause once the test is submitted</span>
+              </li>
+              <li className="flex text-left items-start gap-3">
+                <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mt-0.5">9</span>
                 <span className="text-text-primary text-sm font-normal">Camera and microphone access is mandatory for the test</span>
               </li>
             </ul>

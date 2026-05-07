@@ -2,6 +2,7 @@ import { useContext, useEffect, useState, useRef } from 'react';
 import { TestContext } from '../context/TestContext';
 import { languages, generateStarterCode } from '../utils/testData';
 import { initSocket } from '../utils/api';
+import { TbCancel } from "react-icons/tb";
 
 export default function TestPage() {
   const {
@@ -26,9 +27,17 @@ export default function TestPage() {
   const question = testQuestions[currentQuestionIndex];
   const [code, setCode] = useState('');
   const [mediaStream, setMediaStream] = useState(null);
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
   const videoRef = useRef(null);
   const permissionRequestedRef = useRef(false);
-  
+  const isWindowFocusedRef = useRef(true);
+
+  // Use ref for state variables needed in stable useEffect listeners
+  const testStateRef = useRef({ languageLocked, testQuestions, submitTest });
+  useEffect(() => {
+    testStateRef.current = { languageLocked, testQuestions, submitTest };
+  }, [languageLocked, testQuestions, submitTest]);
+
   // WebRTC & Socket refs
   const socketRef = useRef(null);
   const peerConnectionsRef = useRef({}); // AdminSocketId -> RTCPeerConnection
@@ -107,6 +116,79 @@ export default function TestPage() {
     }
   }, [languageLocked]);
 
+  // Anti-cheating measures (Copy/Paste, Screenshot)
+  useEffect(() => {
+    const preventCopyPaste = (e) => {
+      e.preventDefault();
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'PrintScreen') {
+        navigator.clipboard.writeText('');
+        alert('Screenshots are not allowed!');
+        e.preventDefault();
+      }
+      if (e.ctrlKey || e.metaKey) {
+        const forbiddenKeys = ['c', 'v', 'x', 'p', 's'];
+        if (forbiddenKeys.includes(e.key.toLowerCase())) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key === 'PrintScreen') {
+        navigator.clipboard.writeText('');
+      }
+    };
+
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+    };
+
+    const checkFocus = () => {
+      const currentlyFocused = !(document.hidden || !document.hasFocus());
+
+      if (!currentlyFocused && isWindowFocusedRef.current) {
+        // Focus was just lost
+        const { languageLocked: isLocked, testQuestions: questions, submitTest: submit } = testStateRef.current;
+        if (isLocked) {
+          alert("Violation Detected: You have left the test window or opened an external tool (e.g., screenshot tool). Your test is being submitted automatically.");
+          submit(questions);
+        }
+      }
+
+      isWindowFocusedRef.current = currentlyFocused;
+      setIsWindowFocused(currentlyFocused);
+    };
+
+    // Use an interval as a robust fallback for focus events
+    const focusInterval = setInterval(checkFocus, 300);
+
+    document.addEventListener('copy', preventCopyPaste);
+    document.addEventListener('cut', preventCopyPaste);
+    document.addEventListener('paste', preventCopyPaste);
+    document.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', checkFocus);
+    window.addEventListener('focus', checkFocus);
+    document.addEventListener('visibilitychange', checkFocus);
+
+    return () => {
+      clearInterval(focusInterval);
+      document.removeEventListener('copy', preventCopyPaste);
+      document.removeEventListener('cut', preventCopyPaste);
+      document.removeEventListener('paste', preventCopyPaste);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', checkFocus);
+      window.removeEventListener('focus', checkFocus);
+      document.removeEventListener('visibilitychange', checkFocus);
+    };
+  }, []);
+
   // Auto-submit if fullscreen exited during test
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -137,77 +219,77 @@ export default function TestPage() {
               videoRef.current.play().catch(err => console.warn('Video play failed:', err));
             };
           }
-          
+
           // Connect to socket for WebRTC signaling
           const socket = initSocket();
           socketRef.current = socket;
 
           socket.on('connect', () => {
-             socket.emit('register-student', {
-                 testId: studentInfo?.testId,
-                 rollNo: studentInfo?.rollNo,
-                 name: studentInfo?.name
-             });
+            socket.emit('register-student', {
+              testId: studentInfo?.testId,
+              rollNo: studentInfo?.rollNo,
+              name: studentInfo?.name
+            });
           });
 
           // Handle incoming WebRTC connection request from admin
           socket.on('request-offer', async (data) => {
-             const { adminSocketId } = data;
-             
-             const pc = new RTCPeerConnection({
-                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-             });
-             peerConnectionsRef.current[adminSocketId] = pc;
+            const { adminSocketId } = data;
 
-             // Add local camera tracks to the peer connection
-             stream.getTracks().forEach(track => pc.addTrack(track, stream));
+            const pc = new RTCPeerConnection({
+              iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            peerConnectionsRef.current[adminSocketId] = pc;
 
-             // Handle ICE candidates
-             pc.onicecandidate = (event) => {
-                 if (event.candidate) {
-                     socket.emit('ice-candidate', {
-                         targetSocketId: adminSocketId,
-                         candidate: event.candidate
-                     });
-                 }
-             };
+            // Add local camera tracks to the peer connection
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-             try {
-                 const offer = await pc.createOffer();
-                 await pc.setLocalDescription(offer);
-                 socket.emit('webrtc-offer', {
-                     adminSocketId,
-                     offer
-                 });
-             } catch (err) {
-                 console.error('Error creating WebRTC offer:', err);
-             }
+            // Handle ICE candidates
+            pc.onicecandidate = (event) => {
+              if (event.candidate) {
+                socket.emit('ice-candidate', {
+                  targetSocketId: adminSocketId,
+                  candidate: event.candidate
+                });
+              }
+            };
+
+            try {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              socket.emit('webrtc-offer', {
+                adminSocketId,
+                offer
+              });
+            } catch (err) {
+              console.error('Error creating WebRTC offer:', err);
+            }
           });
 
           // Handle answer from admin
           socket.on('webrtc-answer', async (data) => {
-             const { adminSocketId, answer } = data;
-             const pc = peerConnectionsRef.current[adminSocketId];
-             if (pc) {
-                 try {
-                     await pc.setRemoteDescription(new RTCSessionDescription(answer));
-                 } catch (e) {
-                     console.error('Error setting remote description from answer:', e);
-                 }
-             }
+            const { adminSocketId, answer } = data;
+            const pc = peerConnectionsRef.current[adminSocketId];
+            if (pc) {
+              try {
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+              } catch (e) {
+                console.error('Error setting remote description from answer:', e);
+              }
+            }
           });
 
           // Handle incoming ICE candidates from admin
           socket.on('ice-candidate', async (data) => {
-              const { sourceSocketId, candidate } = data;
-              const pc = peerConnectionsRef.current[sourceSocketId];
-              if (pc) {
-                  try {
-                      await pc.addIceCandidate(new RTCIceCandidate(candidate));
-                  } catch (e) {
-                      console.error('Error adding ICE candidate', e);
-                  }
+            const { sourceSocketId, candidate } = data;
+            const pc = peerConnectionsRef.current[sourceSocketId];
+            if (pc) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              } catch (e) {
+                console.error('Error adding ICE candidate', e);
               }
+            }
           });
         } catch (err) {
           console.error('Camera/Microphone access error:', err);
@@ -225,11 +307,11 @@ export default function TestPage() {
         setMediaStream(null);
         permissionRequestedRef.current = false;
       }
-      
+
       // Cleanup WebRTC connections
       if (socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
       Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
       peerConnectionsRef.current = {};
@@ -291,7 +373,20 @@ export default function TestPage() {
 
   return (
     <div className={`min-h-screen bg-gray-50 px-6 py-3 ${languageLocked ? 'fullscreen-active' : ''}`}>
+      {/* Anti-screenshot overlay */}
+      {!isWindowFocused && languageLocked && (
+        <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center text-white">
+          <div className="text-6xl mb-4">
+            <TbCancel /></div>
+          <h2 className="text-3xl font-bold mb-2">Window Lost Focus</h2>
+          <p className="text-lg mb-2">Please return to the test window.</p>
+          <p className="text-sm text-gray-400">Taking screenshots or leaving the window is prohibited.</p>
+        </div>
+      )}
+
       <style>{`
+        * { user-select: none; -webkit-user-select: none; }
+        textarea { user-select: text; -webkit-user-select: text; }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f4f3ec; border-radius: 10px; }
         ::-webkit-scrollbar-thumb { background: #54D75A; border-radius: 10px; }
@@ -446,6 +541,9 @@ export default function TestPage() {
                   placeholder="Write your code here..."
                   className="flex-1 w-full p-4 bg-text-primary text-white font-mono text-sm rounded-lg border-2 border-gray-300 focus:border-primary focus:outline-none resize-none leading-relaxed"
                   spellCheck="false"
+                  onCopy={(e) => e.preventDefault()}
+                  onPaste={(e) => e.preventDefault()}
+                  onCut={(e) => e.preventDefault()}
                 />
               </div>
 
