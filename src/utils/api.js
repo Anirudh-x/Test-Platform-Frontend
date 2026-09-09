@@ -47,6 +47,55 @@ export const submitTest = ({ testId, name, rollNo, answers, language, totalTime 
     body: JSON.stringify({ testId, name, rollNo, answers, language, totalTime }),
   });
 
+const JUDGE0_LANGUAGE_MAP = {
+  python: 71,
+  javascript: 63,
+  cpp: 54,
+  java: 62,
+};
+
+export const executeCode = async ({ sourceCode, language = 'python', stdin = '' }) => {
+  try {
+    // Try backend endpoint first
+    return await request('/student/run-code', {
+      method: 'POST',
+      body: JSON.stringify({ sourceCode, language, stdin }),
+    });
+  } catch (backendError) {
+    console.warn('Backend run-code unavailable, attempting direct sandbox execution...', backendError);
+    // Direct Judge0 fallback if backend is offline/unreachable
+    const languageId = JUDGE0_LANGUAGE_MAP[language.toLowerCase()] || 71;
+    const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_code: sourceCode,
+        language_id: languageId,
+        stdin: stdin || '',
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Execution error: ${errText}`);
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      stdout: result.stdout || '',
+      stderr: result.stderr || '',
+      compile_output: result.compile_output || '',
+      message: result.message || '',
+      status: result.status?.description || 'Executed',
+      statusId: result.status?.id,
+      time: result.time,
+      memory: result.memory,
+    };
+  }
+};
+
+
 // ─── Real-time SSE ────────────────────────────────────────────────────────────
 
 /**

@@ -1,8 +1,10 @@
 import { useContext, useEffect, useState, useRef } from 'react';
 import { TestContext } from '../context/TestContext';
 import { languages, generateStarterCode } from '../utils/testData';
-import { initSocket } from '../utils/api';
+import { initSocket, executeCode } from '../utils/api';
 import { TbCancel } from "react-icons/tb";
+import { FaPlay, FaTerminal, FaCheckCircle, FaTimesCircle, FaSpinner } from "react-icons/fa";
+
 
 export default function TestPage() {
   const {
@@ -32,8 +34,27 @@ export default function TestPage() {
   const permissionRequestedRef = useRef(false);
   const isWindowFocusedRef = useRef(true);
 
+  // Code runner states
+  const [isRunning, setIsRunning] = useState(false);
+  const [customInput, setCustomInput] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [runResult, setRunResult] = useState(null);
+  const [isConsoleOpen, setIsConsoleOpen] = useState(true);
+
+  // Comment out it in production
+  // ===================================================================================================
+  const isFullscreenExempt = studentInfo?.name?.trim().toLowerCase() === 'aniruddha'
+    && studentInfo?.rollNo?.trim().toUpperCase() === 'A123';
+  // ===================================================================================================
+
+  // Reset console result when switching questions
+  useEffect(() => {
+    setRunResult(null);
+  }, [currentQuestionIndex]);
+
   // Use ref for state variables needed in stable useEffect listeners
   const testStateRef = useRef({ languageLocked, testQuestions, submitTest });
+
   useEffect(() => {
     testStateRef.current = { languageLocked, testQuestions, submitTest };
   }, [languageLocked, testQuestions, submitTest]);
@@ -92,7 +113,50 @@ export default function TestPage() {
     }
   };
 
+  const handleRunCode = async () => {
+    if (!code || !code.trim()) {
+      setRunResult({
+        isError: true,
+        stderr: 'Error: Please write some code before clicking Run Code.',
+        status: 'Empty Code',
+      });
+      setIsConsoleOpen(true);
+      return;
+    }
+
+    setIsRunning(true);
+    setIsConsoleOpen(true);
+    setRunResult(null);
+
+    try {
+      const res = await executeCode({
+        sourceCode: code,
+        language: selectedLanguage,
+        stdin: customInput,
+      });
+
+      setRunResult({
+        stdout: res.stdout || '',
+        stderr: res.stderr || '',
+        compile_output: res.compile_output || '',
+        status: res.status || 'Executed',
+        time: res.time,
+        memory: res.memory,
+        isError: Boolean(res.stderr || res.compile_output || (res.status && !['Accepted', 'Executed'].includes(res.status))),
+      });
+    } catch (err) {
+      setRunResult({
+        isError: true,
+        stderr: err.message || 'An error occurred while executing the code.',
+        status: 'Execution Failed',
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   const handleNext = () => moveToNextQuestion(testQuestions);
+
 
 
   const handleSubmit = () => {
@@ -108,13 +172,13 @@ export default function TestPage() {
 
   // Fullscreen on language lock
   useEffect(() => {
-    if (languageLocked && !document.fullscreenElement) {
+    if (languageLocked && !isFullscreenExempt && !document.fullscreenElement) {
       const elem = document.documentElement;
       if (elem.requestFullscreen) {
         elem.requestFullscreen().catch(err => console.warn('Fullscreen request failed:', err));
       }
     }
-  }, [languageLocked]);
+  }, [isFullscreenExempt, languageLocked]);
 
   // Anti-cheating measures (Copy/Paste, Screenshot)
   useEffect(() => {
@@ -192,14 +256,14 @@ export default function TestPage() {
   // Auto-submit if fullscreen exited during test
   useEffect(() => {
     const handleFullscreenChange = () => {
-      if (languageLocked && !document.fullscreenElement) {
+      if (languageLocked && !isFullscreenExempt && !document.fullscreenElement) {
         alert('Fullscreen mode was exited. Your test has been submitted.');
         submitTest(testQuestions);
       }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [languageLocked, testQuestions, submitTest]);
+  }, [isFullscreenExempt, languageLocked, testQuestions, submitTest]);
 
   // Camera / mic access when test starts
   useEffect(() => {
@@ -470,14 +534,235 @@ export default function TestPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Problem Section */}
-        <div className="bg-white rounded-xl shadow-soft p-6 overflow-y-auto max-h-[calc(100vh-200px)]">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Left Column: Code Editor & Execution Panel */}
+        <div className="flex flex-col gap-4">
           {!languageLocked ? (
-            <div className="flex flex-col items-center justify-center min-h-96 text-center">
+            <div className="bg-white rounded-xl shadow-soft p-6 min-h-[500px] flex flex-col items-center justify-center text-center">
+              <div className="text-5xl mb-4">✏️</div>
+              <h3 className="text-2xl font-bold text-text-primary mb-2">Code Editor Ready</h3>
+              <p className="text-text-secondary text-sm max-w-sm">Select a programming language above to unlock the code editor and start solving problems.</p>
+            </div>
+          ) : (
+            <>
+              {/* Code Editor */}
+              <div className="bg-white rounded-xl shadow-soft p-5 flex flex-col">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-semibold text-text-primary text-xs uppercase tracking-wide flex items-center gap-2">
+                    <span>💻</span> Write Your Code
+                  </h3>
+                  <span className="text-xs font-mono px-2.5 py-1 rounded bg-gray-100 text-gray-700 font-semibold uppercase">
+                    {languages.find(l => l.id === selectedLanguage)?.name || selectedLanguage}
+                  </span>
+                </div>
+                <textarea
+                  value={code}
+                  onChange={handleCodeChange}
+                  placeholder="Write your code here..."
+                  className="w-full h-80 p-4 bg-[#0f172a] text-[#f8fafc] font-mono text-sm rounded-lg border-2 border-gray-300 focus:border-primary focus:outline-none resize-y leading-relaxed shadow-inner"
+                  spellCheck="false"
+                  onCopy={(e) => e.preventDefault()}
+                  onPaste={(e) => e.preventDefault()}
+                  onCut={(e) => e.preventDefault()}
+                />
+              </div>
+
+              {/* Action Bar Below Code Editor: Run Code Button & Navigation */}
+              <div className="bg-white rounded-xl shadow-soft p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleRunCode}
+                    disabled={isRunning}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-emerald-600 hover:from-emerald-600 hover:to-primary text-white font-bold rounded-lg shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm active:scale-95 cursor-pointer"
+                    title="Run code against sandbox"
+                  >
+                    {isRunning ? (
+                      <>
+                        <FaSpinner className="animate-spin text-sm" />
+                        <span>Running...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FaPlay className="text-xs" />
+                        <span>Run Code</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomInput(prev => !prev)}
+                    className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                      showCustomInput
+                        ? 'bg-gray-100 text-primary border-primary'
+                        : 'bg-white text-text-secondary border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {showCustomInput ? 'Hide Stdin' : 'Custom Input'}
+                  </button>
+
+                  {runResult && (
+                    <button
+                      type="button"
+                      onClick={() => setRunResult(null)}
+                      className="text-xs text-gray-500 hover:text-red-500 transition-colors cursor-pointer"
+                    >
+                      Clear Output
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 ml-auto">
+                  {!isLastQuestion ? (
+                    <button
+                      onClick={handleNext}
+                      className="px-6 py-2.5 bg-gradient-to-r from-secondary to-primary text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200 text-sm cursor-pointer"
+                    >
+                      Next →
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSubmit}
+                      className="px-6 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200 text-sm cursor-pointer"
+                    >
+                      Submit Test
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Optional Custom Input Box */}
+              {showCustomInput && (
+                <div className="bg-white rounded-xl shadow-soft p-4 border border-gray-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-semibold text-text-primary uppercase tracking-wide">
+                      Standard Input (Stdin)
+                    </label>
+                    <span className="text-[11px] text-text-secondary">Input passed to your program</span>
+                  </div>
+                  <textarea
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    placeholder="Enter standard input for your program here..."
+                    className="w-full h-20 p-2.5 bg-gray-50 text-text-primary font-mono text-xs rounded-lg border border-gray-300 focus:border-primary focus:outline-none resize-none"
+                    spellCheck="false"
+                  />
+                </div>
+              )}
+
+              {/* Terminal / Output Console */}
+              {(runResult || isRunning) && (
+                <div className="bg-[#0b0f19] rounded-xl shadow-soft overflow-hidden border border-gray-800 transition-all">
+                  {/* Console Header */}
+                  <div className="bg-[#131b2e] px-4 py-2.5 flex items-center justify-between border-b border-gray-800">
+                    <div className="flex items-center gap-2">
+                      <FaTerminal className="text-primary text-xs" />
+                      <span className="text-xs font-bold text-gray-200 uppercase tracking-wider">Console Output</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {isRunning ? (
+                        <div className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium">
+                          <FaSpinner className="animate-spin text-xs" />
+                          <span>Executing...</span>
+                        </div>
+                      ) : runResult ? (
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            runResult.isError
+                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          }`}>
+                            {runResult.isError ? (
+                              <FaTimesCircle className="text-[10px]" />
+                            ) : (
+                              <FaCheckCircle className="text-[10px]" />
+                            )}
+                            {runResult.status}
+                          </span>
+
+                          {runResult.time && (
+                            <span className="text-[11px] font-mono text-gray-400">
+                              {runResult.time}s
+                            </span>
+                          )}
+
+                          {runResult.memory && (
+                            <span className="text-[11px] font-mono text-gray-400">
+                              {(runResult.memory / 1024).toFixed(1)}MB
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => setIsConsoleOpen(prev => !prev)}
+                        className="text-gray-400 hover:text-gray-200 text-xs font-bold px-1.5 py-0.5 cursor-pointer"
+                        title={isConsoleOpen ? 'Collapse console' : 'Expand console'}
+                      >
+                        {isConsoleOpen ? '▲' : '▼'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Console Body */}
+                  {isConsoleOpen && (
+                    <div className="p-4 font-mono text-xs leading-relaxed max-h-60 overflow-y-auto">
+                      {isRunning ? (
+                        <div className="text-gray-400 py-3 flex items-center gap-2">
+                          <FaSpinner className="animate-spin text-primary" />
+                          Compiling and executing in sandbox...
+                        </div>
+                      ) : runResult ? (
+                        <div className="space-y-3">
+                          {/* Compilation Errors */}
+                          {runResult.compile_output && (
+                            <div className="text-red-400 whitespace-pre-wrap bg-red-950/30 p-2.5 rounded border border-red-900/50">
+                              <div className="font-bold text-red-300 mb-1">Compilation Error:</div>
+                              {runResult.compile_output}
+                            </div>
+                          )}
+
+                          {/* Runtime Errors */}
+                          {runResult.stderr && (
+                            <div className="text-red-400 whitespace-pre-wrap bg-red-950/30 p-2.5 rounded border border-red-900/50">
+                              <div className="font-bold text-red-300 mb-1">Runtime Error / Stderr:</div>
+                              {runResult.stderr}
+                            </div>
+                          )}
+
+                          {/* Standard Output */}
+                          {runResult.stdout && (
+                            <div className="text-emerald-300 whitespace-pre-wrap">
+                              <div className="font-bold text-gray-400 text-[11px] mb-1">Stdout:</div>
+                              {runResult.stdout}
+                            </div>
+                          )}
+
+                          {/* No output message */}
+                          {!runResult.compile_output && !runResult.stderr && !runResult.stdout && (
+                            <div className="text-gray-400 italic">
+                              Program executed successfully with no output. (Tip: Use print() or console.log() to display results).
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Right Column: Problem Box */}
+        <div className="bg-white rounded-xl shadow-soft p-6 overflow-y-auto max-h-[calc(100vh-160px)] sticky top-6">
+          {!languageLocked ? (
+            <div className="flex flex-col items-center justify-center min-h-[500px] text-center">
               <div className="text-5xl mb-4">🔒</div>
               <h3 className="text-2xl font-bold text-text-primary mb-2">Select a Language to Begin</h3>
-              <p className="text-text-secondary text-sm">Please select your preferred programming language from the selector above to start the test and view the questions.</p>
+              <p className="text-text-secondary text-sm max-w-sm">Please select your preferred programming language from the selector above to start the test and view the questions.</p>
             </div>
           ) : (
             <>
@@ -518,55 +803,6 @@ export default function TestPage() {
                   {renderConstraints()}
                 </div>
               )}
-            </>
-          )}
-        </div>
-
-        {/* Code Editor Section */}
-        <div className="flex flex-col gap-6 h-[calc(100vh-180px)]">
-          {!languageLocked ? (
-            <div className="bg-white rounded-xl shadow-soft p-6 flex-1 flex flex-col items-center justify-center">
-              <div className="text-5xl mb-4">✏️</div>
-              <h3 className="text-2xl font-bold text-text-primary mb-2">Code Editor Ready</h3>
-              <p className="text-text-secondary text-sm text-center">Select a programming language above to unlock the code editor and start solving problems.</p>
-            </div>
-          ) : (
-            <>
-              {/* Code Editor */}
-              <div className="bg-white rounded-xl shadow-soft p-6 flex-1 flex flex-col">
-                <h3 className="font-semibold text-text-primary mb-4 text-sm uppercase tracking-wide">Write Your Code</h3>
-                <textarea
-                  value={code}
-                  onChange={handleCodeChange}
-                  placeholder="Write your code here..."
-                  className="flex-1 w-full p-4 bg-text-primary text-white font-mono text-sm rounded-lg border-2 border-gray-300 focus:border-primary focus:outline-none resize-none leading-relaxed"
-                  spellCheck="false"
-                  onCopy={(e) => e.preventDefault()}
-                  onPaste={(e) => e.preventDefault()}
-                  onCut={(e) => e.preventDefault()}
-                />
-              </div>
-
-              {/* Navigation Buttons */}
-              <div className="bg-white rounded-xl shadow-soft px-6 py-4">
-                <div className="flex gap-4 justify-end">
-                  {!isLastQuestion ? (
-                    <button
-                      onClick={handleNext}
-                      className="px-6 py-2 bg-gradient-to-r from-secondary to-primary text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200 text-sm"
-                    >
-                      Next →
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleSubmit}
-                      className="px-6 py-2 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200 text-sm"
-                    >
-                      Submit Test
-                    </button>
-                  )}
-                </div>
-              </div>
             </>
           )}
         </div>
