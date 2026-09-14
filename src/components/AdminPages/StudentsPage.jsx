@@ -177,9 +177,17 @@ export default function StudentsPage() {
                   <div className="border-t border-slate-100 bg-slate-50 divide-y divide-slate-100">
                     {student.tests.map((test, idx) => (
                       <div key={idx} className="px-6 py-3 grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
-                        {/* Test ID */}
+                        {/* Test ID & Type */}
                         <div className="md:col-span-1">
-                          <p className={`${theme.text.secondary} text-xs uppercase tracking-wider font-semibold mb-0.5`}>Test ID</p>
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                              test.testType === 'objective'
+                                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                : 'bg-blue-50 text-blue-700 border-blue-200'
+                            }`}>
+                              {test.testType === 'objective' ? 'Objective' : 'Coding'}
+                            </span>
+                          </div>
                           <p className={`${theme.text.primary} font-semibold text-sm font-mono`}>{test.testId}</p>
                         </div>
 
@@ -190,10 +198,23 @@ export default function StudentsPage() {
                           </span>
                         </div>
 
-                        {/* Language */}
+                        {/* Score or Language */}
                         <div className="md:col-span-1">
-                          <p className={`${theme.text.secondary} text-xs mb-0.5 uppercase tracking-wider font-semibold`}>Language</p>
-                          <p className={`${theme.text.primary} text-sm font-medium capitalize`}>{test.language || '—'}</p>
+                          {test.testType === 'objective' || test.score !== null ? (
+                            <>
+                              <p className={`${theme.text.secondary} text-xs mb-0.5 uppercase tracking-wider font-semibold`}>Score</p>
+                              <p className="text-primary font-bold text-sm">
+                                {test.score !== null && test.score !== undefined
+                                  ? `${test.score} / ${test.totalMarks || '—'} (${test.percentage || 0}%)`
+                                  : '—'}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className={`${theme.text.secondary} text-xs mb-0.5 uppercase tracking-wider font-semibold`}>Language</p>
+                              <p className={`${theme.text.primary} text-sm font-medium capitalize`}>{test.language || '—'}</p>
+                            </>
+                          )}
                         </div>
 
                         {/* Time */}

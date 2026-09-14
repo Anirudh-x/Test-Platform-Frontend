@@ -4,6 +4,7 @@ import { formatTime } from '../utils/testData';
 
 export default function EndTestPage() {
   const { studentInfo, questionTimes, testQuestions, testMeta } = useContext(TestContext);
+  const isObjective = testMeta?.type === 'objective';
 
   const totalTime = Object.values(questionTimes).reduce((acc, time) => acc + time, 0);
 
@@ -11,19 +12,26 @@ export default function EndTestPage() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-cyan-50 p-8 py-7">
       <div className="max-w-5xl mx-auto">
         {/* Success Message */}
-        <div className="bg-white rounded-3xl shadow-soft p-16 text-center mb-12">
-          <div className="inline-block bg-green-100 p-2 rounded-full mb-2 animate-bounce">
+        <div className="bg-white rounded-3xl shadow-soft p-12 md:p-16 text-center mb-10">
+          <div className="inline-block bg-green-100 p-3 rounded-full mb-3 animate-bounce">
             <span className="text-4xl">✅</span>
           </div>
           <h1 className="text-4xl font-bold text-primary mb-2">
-            Test Submitted Successfully!
+            Assessment Submitted Successfully!
           </h1>
-          <p className="text-text-secondary text-sm font-normal leading-relaxed">
-            Thank you for completing the coding test. Your results will be evaluated and shared shortly.
+          <p className="text-text-secondary text-base font-normal leading-relaxed max-w-xl mx-auto">
+            {isObjective
+              ? 'Thank you for completing the objective assessment. Your responses have been securely submitted and recorded. The results will be evaluated and shared shortly.'
+              : 'Thank you for completing the coding test. Your results will be evaluated and shared shortly.'}
           </p>
           {testMeta?.title && (
             <p className="mt-3 text-text-secondary text-base font-medium">
-              Test: <span className="text-primary font-bold">{testMeta.title}</span>
+              Assessment: <span className="text-primary font-bold">{testMeta.title}</span>
+              {isObjective && (
+                <span className="ml-2 text-xs bg-purple-100 text-purple-800 font-bold px-2.5 py-0.5 rounded-full">
+                  Objective MCQ
+                </span>
+              )}
             </p>
           )}
         </div>
