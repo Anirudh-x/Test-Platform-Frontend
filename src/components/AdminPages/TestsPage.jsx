@@ -1,11 +1,10 @@
 import { useContext, useState } from 'react';
-import { FiPlus, FiFileText } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiVideo, FiCode, FiCheckCircle } from 'react-icons/fi';
 import { AdminContext } from '../../context/AdminContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import TestDetailModal from '../Modals/TestDetailModal';
 import CreateTestModal from '../Modals/CreateTestModal';
 import CameraModal from '../Modals/CameraModal';
-import { FiVideo } from 'react-icons/fi';
 
 export default function TestsPage() {
   const { allTests, loadingTests, createTest } = useContext(AdminContext);
@@ -70,12 +69,24 @@ export default function TestsPage() {
               className={`${theme.card} p-5 hover:shadow-md hover:border-secondary/30 transition-all cursor-pointer border flex flex-col`}
               onClick={() => setSelectedTest(test)}
             >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className={`${theme.text.primary} font-bold text-lg flex-1 tracking-tight`}>{test.title}</h3>
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1 pr-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${test.type === 'objective'
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                    }`}>
+                      {test.type === 'objective' ? (
+                        <><FiCheckCircle className="text-xs" /> Objective MCQ</>
+                      ) : (
+                        <><FiCode className="text-xs" /> Coding</>
+                      )}
+                    </span>
+                  </div>
+                  <h3 className={`${theme.text.primary} font-bold text-lg tracking-tight line-clamp-1`}>{test.title}</h3>
                   <p className={`text-xs font-mono font-semibold mt-0.5 ${theme.text.secondary}`}>{test.id}</p>
                 </div>
-                <div className="p-2 bg-secondary-light text-secondary rounded-lg">
+                <div className="p-2 bg-secondary-light text-secondary rounded-lg shrink-0">
                   <FiFileText className="text-xl" />
                 </div>
               </div>

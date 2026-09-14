@@ -9,6 +9,7 @@ export function TestProvider({ children }) {
   const [testSubmitted, setTestSubmitted] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [objectiveAnswers, setObjectiveAnswers] = useState({}); // { [questionId]: optionIndex }
   const [questionTimes, setQuestionTimes] = useState({});
   const [selectedLanguage, setSelectedLanguage] = useState('none');
   const [languageLocked, setLanguageLocked] = useState(false);
@@ -18,7 +19,7 @@ export function TestProvider({ children }) {
 
   // Dynamic test data fetched from backend
   const [testQuestions, setTestQuestions] = useState([]);
-  const [testMeta, setTestMeta] = useState(null); // { testId, title, duration }
+  const [testMeta, setTestMeta] = useState(null); // { testId, title, duration, type }
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -67,13 +68,25 @@ export function TestProvider({ children }) {
     setAnswers(prev => ({ ...prev, [key]: code }));
   }, []);
 
+  const setObjectiveAnswer = useCallback((questionId, optionIndex) => {
+    setObjectiveAnswers(prev => ({ ...prev, [questionId]: optionIndex }));
+  }, []);
+
+  const clearObjectiveAnswer = useCallback((questionId) => {
+    setObjectiveAnswers(prev => {
+      const copy = { ...prev };
+      delete copy[questionId];
+      return copy;
+    });
+  }, []);
+
   // ─── Navigation ────────────────────────────────────────────────────────────
   const moveToNextQuestion = useCallback((questions) => {
     if (questionStartTime && currentQuestionIndex < questions.length) {
       const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
       setQuestionTimes(prev => ({
         ...prev,
-        [questions[currentQuestionIndex].id]: timeSpent,
+        [questions[currentQuestionIndex].id]: (prev[questions[currentQuestionIndex].id] || 0) + timeSpent,
       }));
     }
     if (currentQuestionIndex < questions.length - 1) {
@@ -82,54 +95,82 @@ export function TestProvider({ children }) {
     }
   }, [currentQuestionIndex, questionStartTime]);
 
-  const moveToPreviousQuestion = useCallback(() => {
+  const moveToPreviousQuestion = useCallback((questions) => {
+    if (questionStartTime && currentQuestionIndex < questions.length) {
+      const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+      setQuestionTimes(prev => ({
+        ...prev,
+        [questions[currentQuestionIndex].id]: (prev[questions[currentQuestionIndex].id] || 0) + timeSpent,
+      }));
+    }
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(prev => prev - 1);
       setQuestionStartTime(Date.now());
     }
-  }, [currentQuestionIndex]);
+  }, [currentQuestionIndex, questionStartTime]);
+
+  const goToQuestion = useCallback((index, questions) => {
+    if (questionStartTime && currentQuestionIndex < questions.length) {
+      const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+      setQuestionTimes(prev => ({
+        ...prev,
+        [questions[currentQuestionIndex].id]: (prev[questions[currentQuestionIndex].id] || 0) + timeSpent,
+      }));
+    }
+    setCurrentQuestionIndex(index);
+    setQuestionStartTime(Date.now());
+  }, [currentQuestionIndex, questionStartTime]);
 
   // ─── Submit: save to backend then mark submitted ───────────────────────────
   const submitTest = useCallback(async (questions) => {
-    // Record time for last question
+    // Record time for current question
     let finalTimes = { ...questionTimes };
-    if (questionStartTime && questions.length > 0) {
+    if (questionStartTime && questions.length > 0 && questions[currentQuestionIndex]) {
       const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+      const qId = questions[currentQuestionIndex].id;
       finalTimes = {
         ...finalTimes,
-        [questions[currentQuestionIndex]?.id]: timeSpent,
+        [qId]: (finalTimes[qId] || 0) + timeSpent,
       };
       setQuestionTimes(finalTimes);
     }
 
     const totalTime = Object.values(finalTimes).reduce((acc, t) => acc + t, 0);
+    const isObjective = testMeta?.type === 'objective';
 
-    // Build answers array for backend
-    const answersArray = questions.map(q => ({
-      questionId: q.id,
-      questionTitle: q.title,
-      code: answers[`${q.id}_${selectedLanguage}`] || '',
-      language: selectedLanguage,
-      timeSpent: finalTimes[q.id] || 0,
-    }));
+    let answersArray;
+    if (isObjective) {
+      answersArray = questions.map(q => ({
+        questionId: q.id,
+        questionTitle: q.title,
+        selectedOption: objectiveAnswers[q.id] !== undefined ? objectiveAnswers[q.id] : null,
+        timeSpent: finalTimes[q.id] || 0,
+      }));
+    } else {
+      answersArray = questions.map(q => ({
+        questionId: q.id,
+        questionTitle: q.title,
+        code: answers[`${q.id}_${selectedLanguage}`] || '',
+        language: selectedLanguage,
+        timeSpent: finalTimes[q.id] || 0,
+      }));
+    }
 
-    // Submit to backend (fire-and-forget style, UI doesn't block on it)
     try {
       await api.submitTest({
         testId: studentInfo?.testId,
         name: studentInfo?.name,
         rollNo: studentInfo?.rollNo,
         answers: answersArray,
-        language: selectedLanguage,
+        language: isObjective ? 'objective' : selectedLanguage,
         totalTime,
       });
     } catch (err) {
-      // Even if backend call fails, show the end page — data may be partially saved
       console.error('Submit API error:', err);
     }
 
     setTestSubmitted(true);
-  }, [currentQuestionIndex, questionStartTime, questionTimes, answers, selectedLanguage, studentInfo]);
+  }, [currentQuestionIndex, questionStartTime, questionTimes, answers, objectiveAnswers, selectedLanguage, studentInfo, testMeta]);
 
   // ─── Reset ─────────────────────────────────────────────────────────────────
   const resetTest = useCallback(() => {
@@ -138,6 +179,7 @@ export function TestProvider({ children }) {
     setTestSubmitted(false);
     setCurrentQuestionIndex(0);
     setAnswers({});
+    setObjectiveAnswers({});
     setQuestionTimes({});
     setSelectedLanguage('none');
     setLanguageLocked(false);
@@ -159,6 +201,7 @@ export function TestProvider({ children }) {
     testSubmitted,
     currentQuestionIndex,
     answers,
+    objectiveAnswers,
     questionTimes,
     selectedLanguage,
     languageLocked,
@@ -171,8 +214,11 @@ export function TestProvider({ children }) {
     login,
     startTest,
     setAnswer,
+    setObjectiveAnswer,
+    clearObjectiveAnswer,
     moveToNextQuestion,
     moveToPreviousQuestion,
+    goToQuestion,
     submitTest,
     resetTest,
     setSelectedLanguage,

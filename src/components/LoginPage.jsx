@@ -69,11 +69,11 @@ export default function LoginPage() {
             <ul className="space-y-3">
               <li className="flex items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mt-0.5">1</span>
-                <span className="text-text-primary text-sm font-normal text-left">Select your programming language to view the questions.</span>
+                <span className="text-text-primary text-sm font-normal text-left">For coding tests, select your programming language to begin. For objective tests, start directly.</span>
               </li>
               <li className="flex text-left items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mt-0.5">2</span>
-                <span className="text-text-primary text-sm font-normal">After Selecting language fullscreen mode will get enable and your timer will start.</span>
+                <span className="text-text-primary text-sm font-normal">Fullscreen mode will activate and your assessment timer will start.</span>
               </li>
               <li className="flex text-left items-start gap-3">
                 <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mt-0.5">3</span>
